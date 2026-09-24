@@ -6,8 +6,12 @@
 
 namespace streammatch {
 
+namespace {
+constexpr int GENRE_MATCH_POINTS = 5;
+constexpr int MOOD_MATCH_POINTS = 3;
+}
+
 const std::vector<Movie>& catalogue() {
-    // Fictional, original teaching data. No Netflix catalogue is accessed.
     static const std::vector<Movie> movies = {
         {1, "Campus Detour", 2, 1, 85, 7,
          "Two classmates turn a missed bus into an unexpected adventure."},
@@ -34,6 +38,7 @@ const std::vector<Movie>& catalogue() {
         {12, "Small Town Stage", 2, 3, 100, 0,
          "A community theatre discovers that its backstage stories matter."}
     };
+
     return movies;
 }
 
@@ -59,13 +64,17 @@ std::string moodName(int mood) {
 bool parseInteger(const std::string& text, int low, int high, int& result) {
     std::istringstream input(text);
     int value = 0;
+
     if (!(input >> value)) {
         return false;
     }
+
     input >> std::ws;
+
     if (!input.eof() || value < low || value > high) {
         return false;
     }
+
     result = value;
     return true;
 }
@@ -73,41 +82,64 @@ bool parseInteger(const std::string& text, int low, int high, int& result) {
 std::vector<Match> recommend(const std::vector<Movie>& movies,
                              const Preferences& preferences,
                              std::size_t limit) {
+
     if (preferences.age < 0 || preferences.age > 120 ||
         preferences.genre < 1 || preferences.genre > 4 ||
         preferences.mood < 1 || preferences.mood > 3 ||
         preferences.availableMinutes < 30 ||
         preferences.availableMinutes > 240) {
+
         throw std::invalid_argument("Preferences outside supported ranges.");
     }
 
     std::vector<Match> matches;
+
     for (const Movie& movie : movies) {
-        // Hard filters are never relaxed to manufacture a result.
+
         if (movie.minimumAge > preferences.age ||
             movie.minutes > preferences.availableMinutes) {
             continue;
         }
-        const bool genreMatches = movie.genre == preferences.genre;
-        const bool moodMatches = movie.mood == preferences.mood;
-        const int score = (genreMatches ? 5 : 0) + (moodMatches ? 3 : 0);
-        matches.push_back({movie, score, genreMatches, moodMatches});
+
+        const bool genreMatches =
+            movie.genre == preferences.genre;
+
+        const bool moodMatches =
+            movie.mood == preferences.mood;
+
+        const int score =
+            (genreMatches ? GENRE_MATCH_POINTS : 0) +
+            (moodMatches ? MOOD_MATCH_POINTS : 0);
+
+        matches.push_back({
+            movie,
+            score,
+            genreMatches,
+            moodMatches
+        });
     }
 
-    std::sort(matches.begin(), matches.end(),
-              [](const Match& left, const Match& right) {
-        if (left.score != right.score) {
-            return left.score > right.score;
+    std::sort(
+        matches.begin(),
+        matches.end(),
+        [](const Match& left, const Match& right) {
+
+            if (left.score != right.score) {
+                return left.score > right.score;
+            }
+
+            if (left.movie.minutes != right.movie.minutes) {
+                return left.movie.minutes < right.movie.minutes;
+            }
+
+            return left.movie.id < right.movie.id;
         }
-        if (left.movie.minutes != right.movie.minutes) {
-            return left.movie.minutes < right.movie.minutes;
-        }
-        return left.movie.id < right.movie.id;
-    });
+    );
 
     if (matches.size() > limit) {
         matches.resize(limit);
     }
+
     return matches;
 }
 
